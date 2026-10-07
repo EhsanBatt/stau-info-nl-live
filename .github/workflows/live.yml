@@ -1,0 +1,51 @@
+# Aktualisiert stau-info.nl alle 5 Minuten mit frischen NDW-Verkehrsdaten.
+# Holt den Seiteninhalt aus dem privaten Repo (nur Lesezugriff), baut die Seite
+# und veröffentlicht sie auf Cloudflare. Es werden keine Inhalte in diesem Repo gespeichert,
+# und die Build-Ausgabe wird nicht ins öffentliche Log geschrieben.
+#
+# Secrets: CONTENT_REPO_TOKEN (Fine-grained Token, nur „Contents: Read“ auf EhsanBatt/stau-info-nl),
+#          CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
+name: Live-Daten
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: live-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.repository == 'EhsanBatt/stau-info-nl-live'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Inhalt aus privatem Repo holen
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: EhsanBatt/stau-info-nl
+          token: ${{ secrets.CONTENT_REPO_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Bauen (Ausgabe bleibt privat)
+        env:
+          STRICT_DATA: "1"
+        run: |
+          npm ci --no-audit --no-fund > /tmp/build.log 2>&1 || { echo "npm ci fehlgeschlagen"; exit 1; }
+          npm run build >> /tmp/build.log 2>&1 || { echo "Build fehlgeschlagen (Details im privaten Repo lokal prüfen)"; exit 1; }
+          echo "Build erfolgreich."
+
+      - name: Auf Cloudflare veröffentlichen
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy > /tmp/deploy.log 2>&1 && echo "Veröffentlicht." || { echo "Deploy fehlgeschlagen"; exit 1; }
