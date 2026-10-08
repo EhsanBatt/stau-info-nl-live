@@ -1,4 +1,6 @@
 # Aktualisiert stau-info.nl alle 5 Minuten mit frischen NDW-Verkehrsdaten.
+# Taktgeber ist der Cloudflare-Worker in trigger/ (workflow_dispatch alle 5 Minuten);
+# der GitHub-Zeitplan unten ist nur eine Rückfallebene, falls der Worker ausfällt.
 # Holt den Seiteninhalt aus dem privaten Repo (nur Lesezugriff), baut die Seite
 # und veröffentlicht sie auf Cloudflare. Es werden keine Inhalte in diesem Repo gespeichert,
 # und die Build-Ausgabe wird nicht ins öffentliche Log geschrieben.
@@ -9,7 +11,7 @@ name: Live-Daten
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 concurrency:
