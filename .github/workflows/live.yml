@@ -50,4 +50,17 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy > /tmp/deploy.log 2>&1 && echo "Veröffentlicht." || { echo "Deploy fehlgeschlagen"; exit 1; }
+        # Bis zu 3 Versuche: einzelne Cloudflare-API-Aussetzer sollen den Lauf nicht scheitern lassen.
+        # Bei Fehlern werden nur Wranglers [ERROR]-Zeilen gezeigt, keine Build-Ausgabe.
+        run: |
+          for i in 1 2 3; do
+            if npx wrangler deploy > /tmp/deploy.log 2>&1; then
+              echo "Veröffentlicht (Versuch $i)."
+              exit 0
+            fi
+            echo "Deploy-Versuch $i fehlgeschlagen:"
+            grep -E "\[ERROR\]|APIError" /tmp/deploy.log | head -5 || true
+            if [ "$i" -lt 3 ]; then sleep $((i * 15)); fi
+          done
+          echo "Deploy fehlgeschlagen"
+          exit 1
